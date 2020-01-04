@@ -1,0 +1,134 @@
+@name A Set Extras
+@inputs CycleMarkers1 CycleMarkers2 Battery PantoUp PantoDn ThisCar:entity [PantoCars DrivingCars]:array SignalBell1 SignalBell2
+@inputs Wipers1 Wipers2 GuardIsolation1 GuardIsolation2 Wiper1:array Wiper2:array
+@outputs PantoState State [MarkerLight1 MarkerLight2 GuardLight1 GuardLight2]:vector 
+@persist State
+
+for(N=0,PantoCars:count()){
+    Train = PantoCars[N,entity]
+}
+
+O = entity():owner()
+
+Speed = 1.7
+
+if(first()){   #Set everything to 0 from the beginning
+    State = 0
+    PantoState = 0
+}
+
+if(Battery){
+    if((~CycleMarkers1 & !CycleMarkers1)|(~CycleMarkers2 & !CycleMarkers2)){  #Cycle through the states when I press the button
+        State++
+    }    
+    if(~PantoUp & !PantoUp){
+        if(PantoState){
+            hint("Pantograph is already raised!",5)
+        }
+        else{
+            PantoState = 1
+            for(N=1,PantoCars:count()){
+                PantoCars[N,entity]:soundPlay(N,0,"buttons/button1.wav")
+            }
+        }
+    }
+    
+    if(~PantoDn & !PantoDn){
+        if(PantoState){
+            PantoState = 0
+            for(N=1,PantoCars:count()){
+                PantoCars[N,entity]:soundPlay(N,0,"buttons/button1.wav")
+            }
+        }
+        else{
+            hint("Pantograph is already lowered!",5)
+        }
+    }
+    if(SignalBell1|SignalBell2){
+            DrivingCars[1,entity]:soundPlay("SignalBell1",0,"ambient/alarms/city_firebell_loop1.wav") 
+            DrivingCars[2,entity]:soundPlay("SignalBell2",0,"ambient/alarms/city_firebell_loop1.wav") 
+            soundPitch("SignalBell1",150)
+            soundPitch("SignalBell1",150)
+            }
+    else{
+        soundStop("SignalBell1",0)
+        soundStop("SignalBell2",0)
+    }
+}
+
+if(PantoState){
+    for(N=1,PantoCars:count()){
+        PantoCars[N,entity]:setBodygroup(11,0)
+    } 
+}
+else{
+    for(N=1,PantoCars:count()){
+        PantoCars[N,entity]:setBodygroup(11,1)
+    }   
+}
+
+
+
+
+#Windscreen Wipers
+    if(Wipers1){
+        for(N=1,Wiper1:count()){
+            Wiper1[N,entity]:soundPlay("Wipers",0,"monkssounds/wipers/wiper.wav")
+            soundPitch("Wipers",Speed*100)
+        } 
+    }
+    else{
+        for(N=1,Wiper1:count()){
+            soundStop("Wipers",0)
+        }   
+    }
+    
+    if(Wipers2){
+        for(N=1,Wiper2:count()){
+            Wiper2[N,entity]:soundPlay("Wipers2",0,"monkssounds/wipers/wiper.wav")
+            soundPitch("Wipers2",Speed*100)
+        } 
+    }
+    else{
+        for(N=1,Wiper2:count()){
+            soundStop("Wipers2",0)
+        }   
+    }
+
+if(GuardIsolation1 & Battery){
+    GuardLight1 = vec(0,0,150)
+}
+else{
+    GuardLight1 = vec()   
+}
+
+if(GuardIsolation2 & Battery){
+    GuardLight2 = vec(0,0,150)
+}
+else{
+    GuardLight2 = vec()   
+}
+
+#Marker State Reset
+if(!Battery | State>2){
+    State = 0   
+}
+
+if(State==0){  #State 0 is nothing
+    DrivingCars[1,entity]:setSubMaterial(11,"models/proppertextures/toolsblack")
+    DrivingCars[2,entity]:setSubMaterial(11,"models/proppertextures/toolsblack")
+    MarkerLight1 = MarkerLight2 = vec(0)
+}
+elseif(State==1){ #State 1 is white (forward)
+    DrivingCars[1,entity]:setSubMaterial(11,"models/linnie/basic_bulb")
+    DrivingCars[2,entity]:setSubMaterial(11,"models/linnie/basic_marker")
+    MarkerLight1 = vec(150)
+    MarkerLight2 = vec(150,0,0)  
+}
+elseif(State==2){ #State 2 is red (reverse)
+    DrivingCars[1,entity]:setSubMaterial(11,"models/linnie/basic_marker")
+    DrivingCars[2,entity]:setSubMaterial(11,"models/linnie/basic_bulb")
+    MarkerLight1 = vec(150,0,0)
+    MarkerLight2 = vec(150)
+}
+

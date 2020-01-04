@@ -1,0 +1,727 @@
+@name Linnie's Digital Voice Announcement System | Version 1.11 Beta
+@inputs Battery CycleFwd CycleBwd LDoorOpn LDoorCls RDoorOpn RDoorCls CarA:array CarB:array DrivingA:entity DrivingB:entity
+@outputs StationIndex Speed Constant StopReadout Terminating HasOpenedDoors
+@outputs Line1:string Line2:string Exterior1:string Exterior2:string DestoColor:vector DestoFont:string NextStop:string
+@persist HasOpenedDoors Alerted SwapExterior DoorUnlock M LastAnnounced StationIndex RDoorState LDoorState Route 
+@persist FilePath:string StoppingPattern:array
+
+#[
+============================================================================================
+Linnie's Digital Voice Announcement System
+Version 1.0a
+============
+Thank you for your interest in this E2.
+
+The purpose of this E2 is to simulate NSW's DVA system used on all NSW passenger trains.
+
+Changes in V1.11 Beta:
+    - Fixed Bug that doors would not close from the opposite end
+    - Fixed Door beep not stopping on opposite end
+    - All destination boards (interior and exterior) turn off when there is no power    
+    
+I N S T R U C T I O N S :
+=========================
+
+Primary Setup:
+==============
+----------------------------------------------------------------------------
+Setup for NSW EMUs:
+[<Driving]-[<Motor]-[Motor>]-[Power>]-[<Power]-[<Motor]-[Motor>]-[Driving>]
+   Car1     Car2     Car3     Car4     Car5     Car6     Car7     Car8
+Guard End                                                        Driver End
+----------------------------------------------------------------------------
+
+    1.  Set up the cars as shown above
+        Note: < and > denotes direction of the car.
+        Note: If you only have a 4 car train, Skip Cars 4,5,6 and 7.
+    
+    2.  Place the e2 at the Guard end on the driving car.
+    
+    3.  Add 2 Advanced Entity Markers with Array inputs/outputs. 
+        Pick one for CarA and let the other one be for CarB
+        
+    4.  Link CarA's Advanced Entity Marker to all cars facing towards the guard.
+    
+    5.  Link CarB's Advanced Entity Marker to all cars facing away from the guard.
+    
+    6.  Add a door open button and a door close button for each side
+    
+    7.  Add a button for cycling stops manually (Optional, but useful)
+      
+Wiring:
+=======
+    1.  Wire LDoorOpn & LDoorCls to your left door open and close buttons respectively.
+    
+    2.  Wire RDoorOpn & RDoorCls to your right door open and close buttons respectively.
+    
+    3.  Wire Battery to your train's Battery switch.
+    
+    4.  Wire CarA's Advanced Entity Marker to CarA[ARRAY].
+    
+    5.  Wire CarB's Advanced Entity Marker to CarB[ARRAY].
+
+E2 Config
+=======
+    1.  Input a route (See the Available Routes list for availability)
+    2.  Input your direction.
+
+Note: You will need 1 of this E2 for each end you want to control the doors from.
+------------------------------------------------------------------------------------------
+
+Trivia :
+========
+    - Pressing the CycleFwd button will tell the system to move forward a stop.
+        Note: You can't cycle stops forward once the system is at the last stop.
+        
+    - Pressing the CycleBwd button will tell the system to move back a stop.
+        Note: You can't cycle stops backward once the system is at the first stop.
+        
+    - Pressing the "Door Open" button will open the doors and announce the current stop.
+    
+    - Pressing the "Door Close" will announce the doors will close, and close the doors after a few seconds.
+    
+    - The StoppingPattern will cycle automatically if the doors have been opened, closed and then locked.
+    
+    - The doors will lock if the train is moving.
+        Note: The doors won't lock unless they are already closed.
+    
+    - Turning the battery on means you will control the doors from this end.
+        Note: This e2 will not run without the battery being turned on.
+
+Todo:
+=====
+    - Record station names for:
+        Sodor
+        Henrysburg
+        Ashland & Olive Hill
+        Northeast Corridor 
+    - Control all of the config with buttons upon startup
+    - Add a startup sequence
+    - Get the sounds to play on all the cars
+
+Bugs:
+=====
+    You can close the doors while they are already closing, doesn't break anything though
+============================================================================================
+]#
+
+#Config
+
+Route = 1
+
+#[
+    Available Routes:
+    1.  Sunset Gulch (All Stops Except Redwall)
+    2.  Sunset Gulch (Express)
+    3.  Sunset Gulch (All Stops)
+    4.  Sodor (All Stops Except Brendam)
+    5.  Route Mapping Train
+    6+  Unused
+]#
+
+DestoFont = "LCD German Type 1"
+DestoColor = vec(255,125,0) #Colour for the desto lettering
+
+Direction = 0 #0 for down, 1 for up
+
+
+AuxEnable = 1 #Enable Aux announcements?
+AuxDelay = 60 #Time in seconds between Aux announcements
+
+WelcomeAboard = 1 # 1 for Welcome Aboard, 0 for showing next stop
+
+
+AuxIndex = randint(1,5)
+AuxAnnouncements = select(AuxIndex,
+"linnie/dva/cctv.wav", 
+"linnie/dva/nosmoking.wav",
+"linnie/dva/opalcard.wav",
+"linnie/dva/rubbish.wav",
+"linnie/dva/mindthegap.wav")
+
+
+#===================================================================================
+#Don't touch any of this, unless you are Titus, love you bb <3
+
+#init
+Constant = 1
+
+if(first()){
+    for(N=0,CarA:count()+1){
+        CarA[N,entity]:setBodygroup(4,0)
+        CarA[N,entity]:setBodygroup(5,0)
+    }
+    for(N=0,CarB:count()+1){
+        CarB[N,entity]:setBodygroup(4,0)
+        CarB[N,entity]:setBodygroup(5,0)
+    }
+    DestoColor = DestoColor
+    if(AuxEnable){
+        timer("auxannounce",1)
+        }
+    if(WelcomeAboard & Route<6 & Route>1){
+      timer("welcomeboard",1)
+    }
+    if(!WelcomeAboard & Route<5 & Route>1){
+        timer("nextstop",1) 
+    }
+    if(Route==5){
+        timer("testing",1)
+    }
+}
+
+if(Battery){
+    interval(100)       
+    if(Route>=1 & Route<5){
+        timer("exteriorchange",3000)
+    }
+    if(clk("testing")){
+        Line1 = "Train Under"
+        Line2 = "Test"
+        Exterior1 = "Train Under"
+        Exterior2 = "Test"   
+    }
+    
+    if(Route==1){
+        StoppingPattern = array(
+        "Wolfram", 
+        "Dragons rock",
+        "Kahuna", 
+        "Derrickson",
+        "Rainbow river", 
+        "Crucible", 
+        "Rockfort")
+        LongBoi = 0 #which station has an unusually long name
+        ViaStop = 4
+        FilePath = "linnie/dva/"
+    }
+    elseif(Route==2){
+        StoppingPattern = array(
+        "Wolfram",
+        "Kahuna", 
+        "Crucible", 
+        "Rockfort")
+        ViaStop = 3
+        FilePath = "linnie/dva/"
+    }
+    elseif(Route==3){
+        StoppingPattern = array(
+        "Wolfram", 
+        "Dragons rock",
+        "Redwall",
+        "Kahuna", 
+        "Derrickson",
+        "Rainbow river", 
+        "Crucible", 
+        "Rockfort")
+        LongBoi = 0 #which station has an unusually long name
+        ViaStop = 3 #route via which station?
+        FilePath = "linnie/dva/"
+    }
+    elseif(Route==4){ #Sodor Route
+        StoppingPattern = array(
+        "Knapford", 
+        "Knapford Docks",
+        "Tidmouth",
+        "Tidmouth Halt",
+        "Crosby",
+        "Wellsworth",
+        "Maron",
+        "Cronk",
+        "Kildane",
+        "Crovans Gate",
+        "Vicarstown",
+        "Barrow In Furness",
+        "Kings Cross")
+        LongBoi = 12 #which station takes longer to say     
+        ViaStop = 3 #route via which station?
+        FilePath = "linnie/dva/"
+    }
+        
+    if(clk("clearboard")){
+        Line1 = ""
+        Line2 = ""
+        StopReadout = 0
+    }
+    
+    if(clk("welcomeboard")){
+        Line1 = "Welcome"
+        Line2 = "Aboard"
+        stoptimer("welcomeboard")
+    }
+    if(clk("nextstop")){
+        Line1 = "Next Stop:"
+        Line2 = StoppingPattern[StationIndex,string]
+        stoptimer("nextstop")
+    }
+     if(RDoorState | LDoorState){
+        Line1 = "Now at:"
+        Line2 = StoppingPattern[StationIndex,string]
+    }
+    
+    #Station stop Readouts eg. This train will stop at A, B, C and D
+    if(clk("BeginStopReadout")){
+        StopReadout = StationIndex
+        timer("stopreadout",2000)
+        timer("cancel",1)
+        if(clk("cancel")){
+            BeginStopReadout = 0
+            stoptimer("cancel")
+            }
+        DrivingA:soundPlay(2,0,FilePath+"thistrainwillstopat.wav")
+    }
+
+    if(clk("stopreadout2")){
+        timer("stopreadout",1)
+        stoptimer("stopreadout2")   
+    }
+    if(clk("stopreadout")){
+        DrivingA:soundPlay(2,0,FilePath+StoppingPattern[StopReadout,string]+".wav")
+        DrivingB:soundPlay(12,0,FilePath+StoppingPattern[StopReadout,string]+".wav")
+        stoptimer("stopreadout")
+        stoptimer("auxannounce") 
+        if(StopReadout==LongBoi){
+            timer("stopreadout",2500)
+        }
+        else{
+            timer("stopreadout",1200)
+        }
+            
+        if(Direction){
+            StopReadout--
+            if(StopReadout<1){
+                if(StationIndex>1){
+                    DrivingA:soundPlay(2,0,FilePath+"and.wav")
+                    DrivingB:soundPlay(12,0,FilePath+"and.wav")
+                    timer("saylaststop",700)                
+                }
+                else{
+                    timer("saylaststop",1)
+                } 
+                stoptimer("stopreadout")  
+            }
+            
+        }
+        else{
+            StopReadout++
+            if(StopReadout>StoppingPattern:count()){
+                if(StationIndex<StoppingPattern:count()){
+                    DrivingA:soundPlay(2,0,FilePath+"and.wav")
+                    DrivingB:soundPlay(12,0,FilePath+"and.wav")
+                    timer("saylaststop",700)                
+                }
+                else{
+                    timer("saylaststop",1)   
+                }
+                stoptimer("stopreadout")
+            }
+        }
+    }   
+    if(clk("sayonly")){
+        DrivingA:soundPlay(2,0,FilePath+"only.wav")
+        DrivingB:soundPlay(12,0,FilePath+"only.wav")   
+    }
+    if(clk("saylaststop")){ #Say the last stop for this service
+            
+            if(!Direction){
+                DrivingA:soundPlay(2,0,FilePath+StoppingPattern[StoppingPattern:count(),string]+".wav")
+                DrivingB:soundPlay(12,0,FilePath+StoppingPattern[StoppingPattern:count(),string]+".wav")
+                stoptimer("saylaststop")
+                if(StationIndex>StoppingPattern:count()){
+                    timer("sayonly",1000)   
+                }
+            }
+            else{
+                DrivingA:soundPlay(2,0,FilePath+StoppingPattern[1,string]+".wav")
+                DrivingB:soundPlay(12,0,FilePath+StoppingPattern[1,string]+".wav")
+                stoptimer("saylaststop")
+                if(StationIndex<2){
+                    timer("sayonly",1000)   
+                }
+            }
+            timer("clearboard",4000)
+            if(AuxEnable){
+                timer("auxannounce",6000)
+            }
+            if(WelcomeAboard){
+                timer("welcomeboard",6000)
+            }
+            else{
+                timer("nextstop",6000)   
+            }
+    }
+        if(Speed>500 & DoorUnlock){
+        if(!RDoorState|!LDoorState){
+        DoorUnlock = 0
+        timer("wait2hasopened",1)
+        
+        if(HasOpenedDoors){
+            AddStop = 1
+        }
+        DrivingA:soundPlay(3,0,"doors/door_lock_1.wav") 
+        DrivingB:soundPlay(13,0,"doors/door_lock_1.wav") 
+        }
+    }
+    if(!DoorUnlock & Speed<1){
+        DoorUnlock = 1
+        DrivingA:soundPlay(3,0,"doors/door_lock_1.wav")
+        DrivingB:soundPlay(13,0,"doors/door_lock_1.wav")
+        
+    }
+    if(!Alerted & (LDoorState|RDoorState) & Speed>1){
+        Alerted = 1
+        timer("dooralert",1)
+        DrivingA:soundPlay(6,0,"npc/turret_floor/alarm.wav") 
+        DrivingB:soundPlay(16,0,"npc/turret_floor/alarm.wav") 
+        hint("Stop immediately! The doors are open!",5)   
+    }
+    
+    if(Speed<1){
+            Alerted = 0
+            soundStop(6,0)
+            soundStop(16,0)
+            stoptimer("dooralert") 
+        }
+    #Startup jingle
+    if(~Battery){
+    print("[DVA] Welcome to Linnie's Digital Voice Announcement System!\nCheck the instructions if you get stuck!")
+    DrivingA:soundPlay(4,0,"modern_alerts/lib/button34.wav")
+    DrivingB:soundPlay(14,0,"modern_alerts/lib/button34.wav")
+    }
+    if(RDoorState|LDoorState){
+        HasOpenedDoors=1
+    }  
+    if(!Direction){       
+        if(first()){
+            StationIndex = 1 
+        }
+        if((~CycleFwd & !CycleFwd) & StationIndex<StoppingPattern:count()){
+                StationIndex++
+                DrivingA:soundPlay(5,0,"buttons/button17.wav")
+                DrivingB:soundPlay(15,0,"buttons/button17.wav")
+            }
+            
+        if((~CycleBwd & !CycleBwd) & StationIndex>1){
+                StationIndex--
+                DrivingA:soundPlay(5,0,"buttons/button17.wav")
+                DrivingB:soundPlay(15,0,"buttons/button17.wav")
+                if(Terminating){
+                    Terminating = 0
+                }
+            }
+        
+        if(StationIndex==StoppingPattern:count()){
+            Terminating = 1
+        }
+        #Current/Next Stop Displays
+        if(StopReadout==StationIndex){
+            Line1 = "Stopping at:"
+        }
+        if(StopReadout>StationIndex){
+            Line2 = StoppingPattern[StopReadout-1,string]
+        }
+        if(clk("exteriorchange")){ #Swap the exterior Destination Boards
+            SwapExterior = !SwapExterior
+            if(SwapExterior){
+                Exterior1 = StoppingPattern[StoppingPattern:count(),string]
+                Exterior2 = "City"
+            }
+            else{
+                Exterior1 = "Via"
+                Exterior2 = StoppingPattern[ViaStop,string]
+            }
+        }
+        if((!LDoorState & !RDoorState) & !Terminating & AddStop){ 
+            #If both doors are closed, not terminating and you haven't already added a stop, add a stop.
+            AddStop = 0
+            StationIndex++
+            timer("BeginStopReadout",5000)
+            timer("clearboard",1)
+            if(DoorUnlock){
+            #If the train stops before the readout, cancel the stop readout
+            stoptimer("BeginStopReadout")
+            }
+        }
+    } 
+    else{
+        if(first()){
+            StationIndex = StoppingPattern:count()
+        }
+        if((~CycleFwd & !CycleFwd) & StationIndex>1){
+                StationIndex--
+                DrivingA:soundPlay(5,0,"buttons/button17.wav")
+                DrivingB:soundPlay(15,0,"buttons/button17.wav")
+            }
+            
+        if((~CycleBwd & !CycleBwd) & StationIndex<StoppingPattern:count()){
+                StationIndex++
+                DrivingA:soundPlay(5,0,"buttons/button17.wav")
+                DrivingB:soundPlay(15,0,"buttons/button17.wav")
+                if(Terminating){
+                    Terminating = 0   
+                }   
+            }
+        
+        if(StationIndex==1){
+            Terminating = 1
+        }
+        #Current/Next Stop Displays
+        if(StopReadout==StationIndex){
+            Line1 = "Stopping at:"
+        }
+        if(StopReadout>=0 & clk("stopreadout")){
+            Line2 = StoppingPattern[StopReadout+1,string]
+        }
+        
+        #Exterior Displays
+        if(clk("exteriorchange")){
+            SwapExterior = !SwapExterior
+            if(SwapExterior){
+                Exterior1 = StoppingPattern[1,string]
+                Exterior2 = "City"
+            }
+            else{
+                Exterior1 = "Via"
+                Exterior2 = StoppingPattern[ViaStop,string]
+            }
+        }
+        if((!LDoorState & !RDoorState) & !Terminating & AddStop){ 
+            #If both doors are closed, not terminating and you haven't already added a stop, add a stop.
+            AddStop = 0
+            StationIndex--
+            timer("BeginStopReadout",5000)
+            timer("clearboard",1)
+            if(DoorUnlock){
+            #If the train stops before the readout, cancel the stop readout
+            stoptimer("BeginStopReadout")
+            }
+        }
+        
+        
+    }
+    if(StationIndex < 1){
+        StationIndex = StoppingPattern:count()   
+    }
+    #Reset the station index if it gets too high
+    if(StationIndex > StoppingPattern:count()){
+        StationIndex = 1
+    }
+    
+    #Speed defining
+    V = entity():velL():z()
+    Speed = abs(V)
+    
+    if(clk("auxannounce")){  #Play Aux announcements
+        DrivingA:soundPlay(2,0,AuxAnnouncements)
+        DrivingB:soundPlay(12,0,AuxAnnouncements)
+        stoptimer("auxannounce")
+        timer("auxannounce",AuxDelay*1000)
+    }
+    
+    #Left door open and close buttons
+    if((~LDoorOpn & !LDoorOpn) & !LDoorState & DoorUnlock){
+        #Tell me where I am currently and open the Right doors
+        timer("Ldoorbeep",1)
+        timer("announce",3000)
+        timer("Lwait2opn",1) #Don't tell me I can't open them when they are not yet opened
+        timer("Lwait2opnd",3600)
+    }
+    
+    if((~LDoorCls & !LDoorCls) & LDoorState){
+        DrivingA:soundPlay(1,0,"linnie/waratah/doorsclosing.wav")
+        DrivingB:soundPlay(11,0,"linnie/waratah/doorsclosing.wav")
+        timer("Ldoorcls",3000)
+    }
+    
+    #Right door open and close buttons
+    if((~RDoorOpn & !RDoorOpn) & !RDoorState & DoorUnlock){
+        #Tell me where I am currently and open the Right doors
+        timer("Rdoorbeep",1)
+        timer("announce",3000)
+        timer("Rwait2opn",1) #Don't tell me I can't open them when they are not yet opened
+        timer("Rwait2opnd",3600)
+    }
+    
+    if((~RDoorCls & !RDoorCls) & RDoorState){
+        DrivingA:soundPlay(1,0,"linnie/waratah/doorsclosing.wav")
+        DrivingB:soundPlay(11,0,"linnie/waratah/doorsclosing.wav")
+        timer("Rdoorcls",3000)
+    }
+    
+    #Current stop announcement soundplays
+    if(clk("announce")){ #Firstly, play the 3 chime
+        DrivingA:soundPlay(1,0,"armystuntmansdispatch/beepend.wav")
+        DrivingB:soundPlay(11,0,"armystuntmansdispatch/beepend.wav")
+        timer("announce2",1000) #And trigger the stop announcement
+    }
+    if(clk("announce2")){ #Secondly, start announcing the stop
+        DrivingA:soundPlay(1,0,FilePath+"thisstationis.wav")
+        DrivingB:soundPlay(11,0,FilePath+"thisstationis.wav")
+        stoptimer("announce2")
+        timer("StatName",1200) #And trigger the name of the stop
+    }
+    
+    #Door open beeps
+    if(clk("Ldoorbeep")){
+        DrivingA:soundPlay(1,0,"linnie/waratah/doorwarningbeep_single.wav")
+        DrivingB:soundPlay(11,0,"linnie/waratah/doorwarningbeep_single.wav")
+        stoptimer("Ldoorbeep")
+        timer("Ldoorbeep",1200)
+    }
+    if(clk("Rdoorbeep")){
+        DrivingA:soundPlay(1,0,"linnie/waratah/doorwarningbeep_single.wav")
+        DrivingB:soundPlay(11,0,"linnie/waratah/doorwarningbeep_single.wav")
+        stoptimer("Rdoorbeep")
+        timer("Rdoorbeep",1200)
+    }
+    
+    #Door close beeps
+    if(clk("Ldoorcls")){
+        DrivingA:soundPlay(2,0,"linnie/waratah/doorwarningbeep.wav")
+        DrivingB:soundPlay(12,0,"linnie/waratah/doorwarningbeep.wav")
+        timer("Lwait2cls",3000) #Don't tell me I can't close them when they are not yet closed
+    }
+    if(clk("Rdoorcls")){
+        DrivingA:soundPlay(2,0,"linnie/waratah/doorwarningbeep.wav")
+        DrivingB:soundPlay(12,0,"linnie/waratah/doorwarningbeep.wav")
+        timer("Rwait2cls",3000) #Don't tell me I can't close them when they are not yet closed
+    }
+    
+    #Say station name
+    if(clk("StatName")){ #Tell me the name of the station
+        DrivingA:soundPlay(2,0,FilePath+StoppingPattern[StationIndex,string]+".wav")
+        DrivingB:soundPlay(12,0,FilePath+StoppingPattern[StationIndex,string]+".wav")
+        stoptimer("StatName")
+        if(Terminating){
+            timer("TerminatesHere",2000)
+        }
+    }
+    
+    #Terminates here announcement
+    if(clk("TerminatesHere")){
+        DrivingA:soundPlay(2,0,FilePath+"thistrainterminateshere.wav")
+        DrivingB:soundPlay(12,0,FilePath+"thistrainterminateshere.wav")   
+    }
+    
+    #Error messages
+    
+    O = entity():owner()
+    
+    if(((~RDoorOpn & !RDoorOpn) & !Route)|(first() & !Route)){
+        hint("You must select a route!",5) #backhand me for being a dumbass
+        O:soundPlay(1,0,"buttons/button11.wav")
+    }
+    
+    if((~LDoorOpn & !LDoorOpn) & Speed>1){
+        hint("You can't open the doors while moving!",5) #ditto
+        O:soundPlay(1,0,"buttons/button11.wav")
+    }
+    if((~RDoorOpn & !RDoorOpn) & Speed>1){
+        hint("You can't open the doors while moving!",5) #ditto
+        O:soundPlay(1,0,"buttons/button11.wav")
+    }
+    
+    #Left Door errors
+    if((~LDoorOpn & !LDoorOpn) & LDoorState){
+        hint("Left doors are already open!",5) #ditto 
+    }
+    if((~LDoorCls & !LDoorCls) & !LDoorState){
+        hint("Left doors are already closed!",5)  #ditto  
+    }
+    
+    #Right Door errors
+    if((~RDoorOpn & !RDoorOpn) & RDoorState){
+        hint("Right doors are already open!",5) #ditto 
+    }
+    if((~RDoorCls & !RDoorCls) & !RDoorState){
+        hint("Right doors are already closed!",5)  #ditto  
+    }
+    
+    #Route errors
+    if(first() & Route>5){
+        hint("This route isn't supported yet!",5)
+        O:soundPlay(1,0,"vo/citadel/br_no.wav")
+    }
+    
+    #Left door open and close timers
+    if(clk("Lwait2opn")){ 
+        LDoorState = 1
+        for(N=0,CarA:count()+1){
+            CarA[N,entity]:setBodygroup(5,1)
+        }
+        for(N=0,CarB:count()+1){
+            CarB[N,entity]:setBodygroup(4,1)
+        }
+        stoptimer("Lwait2opn")
+        }
+    
+    if(clk("Lwait2opnd")){ 
+        stoptimer("Lwait2opnd")
+        stoptimer("Ldoorbeep")
+        }
+        
+    if(clk("Lwait2cls")){
+        soundStop(2,0)
+        soundStop(12,0)
+        stoptimer("Lwait2cls")
+        DrivingA:soundPlay(1,0,"linnie/waratah/doorcls.wav")
+        DrivingB:soundPlay(11,0,"linnie/waratah/doorcls.wav")
+        LDoorState = 0
+        for(N=0,CarA:count()+1){
+            CarA[N,entity]:setBodygroup(5,0)
+        }
+        for(N=0,CarB:count()+1){
+            CarB[N,entity]:setBodygroup(4,0)
+        }
+        }
+        
+    #Right door open and close timers
+    if(clk("Rwait2opn")){ 
+        RDoorState = 1
+        for(N=0,CarA:count()+1){
+            CarA[N,entity]:setBodygroup(4,1)
+        }
+        for(N=0,CarB:count()+1){
+            CarB[N,entity]:setBodygroup(5,1)
+        }
+        stoptimer("Rwait2opn")
+        }
+    
+    if(clk("Rwait2opnd")){ 
+        stoptimer("Rwait2opnd")
+        stoptimer("Rdoorbeep")
+        }
+       
+    if(clk("Rwait2cls")){
+        soundStop(2,0)
+        soundStop(12,0)
+        stoptimer("Rwait2cls")
+        DrivingA:soundPlay(1,0,"linnie/waratah/doorcls.wav")
+        DrivingB:soundPlay(11,0,"linnie/waratah/doorcls.wav")
+        RDoorState = 0
+        for(N=0,CarA:count()+1){
+            CarA[N,entity]:setBodygroup(4,0)
+        }
+        for(N=0,CarB:count()+1){
+            CarB[N,entity]:setBodygroup(5,0)
+        }
+        }
+    #HasOpenedDoors check timer
+    if(clk("wait2hasopened")){
+            HasOpenedDoors = 0
+        }
+    NextStop = StoppingPattern[StationIndex,string]
+}
+else{
+    soundStop(1,0)  
+    soundStop(11,0) 
+    soundStop(2,0)
+    soundStop(12,0)
+    soundStop(3,0)  
+    soundStop(13,0) 
+    soundStop(4,0)
+    soundStop(14,0)
+    stopAllTimers()
+    Line1=Line2=Exterior1=Exterior2=NextStop=""           
+}
+

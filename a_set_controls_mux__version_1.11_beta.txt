@@ -1,0 +1,59 @@
+@name A Set Controls Mux | Version 1.11 Beta
+@inputs Battery1 Battery2 LDoorOpn1 LDoorOpn2 RDoorOpn1 RDoorOpn2 CycleFwd1 CycleFwd2 CycleBwd1 CycleBwd2
+@inputs LDoorCls1 LDoorCls2 RDoorCls1 RDoorCls2 PantoUp1 PantoUp2 PantoDn1 PantoDn2
+@outputs Battery LDoorOpn RDoorOpn LDoorCls RDoorCls PantoUp PantoDn CycleFwd CycleBwd
+
+if(first() | LDoorOpn1 | LDoorOpn2 | LDoorCls1 | LDoorCls2 | RDoorOpn1 | RDoorOpn2 | RDoorCls1 | RDoorCls2 | PantoUp1 | PantoUp2 | PantoDn1 | PantoDn2 | CycleFwd | CycleBwd){
+    LDoorOpn=LDoorCls=RDoorOpn=RDoorCls=PantoUp=PantoDn=1
+    CycleFwd=CycleBwd=1
+}
+
+#Doors
+    #Left Door Open
+    if((~LDoorOpn1 & !LDoorOpn1) | (~RDoorOpn2 & !RDoorOpn2)){
+        LDoorOpn = 0
+    }
+    
+    #Right Door Open
+    if((~RDoorOpn1 & !RDoorOpn1) | (~LDoorOpn2 & !LDoorOpn2)){
+        RDoorOpn = 0
+    }
+    
+    #Left Door Close
+    if((~LDoorCls1 & !LDoorCls1) | (~RDoorCls2 & !RDoorCls2)){
+        LDoorCls = 0
+    }
+    
+    #Right Door Close
+    if((~RDoorCls1 & !RDoorCls1) | (~LDoorCls2 & !LDoorCls2)){
+        RDoorCls = 0
+    }
+
+#Pantographs
+    #Pantograph Raise
+    if((~PantoUp1 & !PantoUp1) | (~PantoUp2 & !PantoUp2)){
+        PantoUp = 0
+    }
+    
+    #Pantograph Lower
+    if((~PantoDn1 & !PantoDn1) | (~PantoDn2 & !PantoDn2)){
+        PantoDn = 0
+    }
+    
+#Battery Switches
+
+    if(Battery1 | Battery2){
+        Battery = 1   
+    }
+    else{
+        Battery = 0   
+    }
+
+#Cycle Fwd
+    if((~CycleFwd1 & !CycleFwd1) | (~CycleFwd2 & !CycleFwd2)){
+        CycleFwd = 0   
+    }
+#Cycle Bwd
+    if((~CycleBwd1 & !CycleBwd1) | (~CycleBwd2 & !CycleBwd2)){
+        CycleBwd = 0   
+    }

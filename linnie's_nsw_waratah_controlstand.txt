@@ -1,0 +1,139 @@
+@name Linnie's NSW Waratah controlstand
+@inputs Active CS:entity Pod:entity
+@outputs ThrottlePos BrakePos Vigilance
+@outputs Horn TownHorn CountryHorn
+#For use with Magnum's OLC (Optimized Loco Control)
+
+interval(50)
+if(first()){
+    ThrottlePos = 0
+    BrakePos = 9 
+}
+
+
+#Defining what the driver is
+Driver = Pod:driver()
+
+#Defining what counts as activating the horn
+Horn = TownHorn | CountryHorn
+
+#Controls init
+ControlInterval = 10 #how quickly to increase/decrese the controls
+Reversing = Driver:keyPressed("s")
+Throttle = Reversing? Driver:keyPressed("s") : Driver:keyPressed("w")
+Brake = Driver:keyPressed("space")
+Town1 = Driver:keyPressed("r")
+Town2 = Driver:keyPressed("up")
+Country1 = Driver:keyPressed("f")
+Country2 = Driver:keyPressed("down")
+TownHorn = Town1 | Town2
+CountryHorn = Country1 | Country2
+Vigilance = Driver:keyPressed("v")
+
+if(Active){ #If Active, run the code
+    runOnKeys(Driver,0)
+#Reverser
+    if(changed(Reversing) & Reversing){    
+        CS:setBodygroup(1,1)
+        CS:soundPlay("reverser",0,"gsgtrainsounds/misc/reverser_r.wav")
+    }
+    if(changed(Reversing) & !Reversing){    
+        CS:setBodygroup(1,3)
+        CS:soundPlay("reverser",0,"gsgtrainsounds/misc/reverser_f.wav")
+    }
+    
+#Horn Levers
+    #Horn1 (Left)    
+    if(Town1){
+        CS:setBodygroup(3,1)  
+    }
+    elseif(!Country1){
+        CS:setBodygroup(3,0)   
+    }
+    
+    if(Country1){
+        CS:setBodygroup(3,2)  
+    }
+    elseif(!Town1){
+        CS:setBodygroup(3,0)   
+    }
+    
+    #Horn2 (Right)
+    if(Town2){
+        CS:setBodygroup(4,1)  
+    }
+    elseif(!Country2){
+        CS:setBodygroup(4,0)   
+    }
+    if(Country2){
+        CS:setBodygroup(4,2)  
+    }
+    elseif(!Town2){
+        CS:setBodygroup(4,0)   
+    }
+    
+    #Vigilance
+    if(Vigilance){
+        CS:setBodygroup(5,1)  
+    }
+    else{
+        CS:setBodygroup(5,0)   
+    }
+
+#Throttle Controls
+if(clk("IncreaseThrottle")){
+    ThrottlePos++
+    timer("IncreaseThrottle",100)
+}
+if(clk("DecreaseThrottle")){
+    ThrottlePos--
+    timer("DecreaseThrottle",100)
+}
+
+if(clk("IncreaseBrake")){
+    BrakePos++
+    timer("IncreaseBrake",100)
+}
+if(clk("DecreaseBrake")){
+    BrakePos--
+    timer("DecreaseBrake",100)
+}
+if(Throttle){ #If I'm holding down throttle, do this
+    stoptimer("DecreaseThrottle") 
+    if(ThrottlePos==8){
+        stoptimer("IncreaseThrottle")   
+    }
+    else{
+        timer("IncreaseThrottle",ControlInterval)
+    }
+}
+else{
+    stoptimer("IncreaseThrottle") 
+    if(ThrottlePos==0){
+        stoptimer("DecreaseThrottle")   
+    }
+    else{
+        timer("DecreaseThrottle",ControlInterval)
+    }  
+}
+
+if(Brake){ #If I'm holding down throttle, do this
+    stoptimer("DecreaseBrake") 
+    if(BrakePos==16){
+        stoptimer("IncreaseBrake")   
+    }
+    else{
+        timer("IncreaseBrake",ControlInterval)
+    }
+}
+else{
+    stoptimer("IncreaseBrake") 
+    if(BrakePos==9){
+        stoptimer("DecreaseBrake")   
+    }
+    else{
+        timer("DecreaseBrake",ControlInterval)
+    }  
+}
+CS:setBodygroup(2, BrakePos>9? BrakePos : ThrottlePos)
+}

@@ -1,0 +1,18 @@
+@name A set Numberer
+@persist Primary Secondary Third:string
+@outputs [FrontCarNumber RearCarNumber SetNumber]:string
+
+if(first()){
+    Primary = 64
+    Secondary = randint(1,79)
+}
+if(Secondary<10){
+    SetNumber = "0" + Secondary:toString()
+}
+else{
+    SetNumber = Secondary:toString()   
+}
+
+FrontCarNumber = "D" + Primary:toString() + SetNumber
+RearCarNumber = "D" + (Primary-1):toString() + SetNumber
+
